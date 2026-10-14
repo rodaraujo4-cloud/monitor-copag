@@ -128,34 +128,27 @@ def fazer_login(page, info):
     page.goto(f"{BASE}/login", wait_until="domcontentloaded", timeout=60000)
     page.wait_for_timeout(4000)
 
-    # Algumas lojas mostram primeiro um botão "Entrar com e-mail e senha"
-    for texto in ["Entrar com e-mail e senha", "e-mail e senha", "Email e senha"]:
-        botao = page.get_by_text(texto, exact=False)
-        if botao.count() > 0:
-            try:
-                botao.first.click(timeout=5000)
-                page.wait_for_timeout(1500)
-                break
-            except Exception:
-                pass
+    # Se a página abrir na tela de recuperação (pede CNPJ), volta para a tela normal
+    if page.get_by_text("Digite seu CNPJ", exact=False).count() > 0:
+        try:
+            page.get_by_text("Voltar", exact=True).first.click(timeout=5000)
+            page.wait_for_timeout(1500)
+        except Exception:
+            pass
 
     info["etapa"] = "procurando o campo de e-mail"
     campo_email = page.locator(
-        'input[type="email"], input[name="email"], input[placeholder*="mail" i]').first
+        'input[placeholder*="exemplo@mail" i], input[type="email"], input[name="email"]').first
     campo_email.fill(EMAIL, timeout=20000)
 
     info["etapa"] = "procurando o campo de senha"
     campo_senha = page.locator('input[type="password"]').first
-    try:
-        campo_senha.wait_for(state="visible", timeout=3000)
-    except PWTimeout:
-        # Fluxo em duas etapas: e-mail -> continuar -> senha
-        campo_email.press("Enter")
-        campo_senha.wait_for(state="visible", timeout=15000)
+    campo_senha.fill(SENHA, timeout=15000)
 
-    campo_senha.fill(SENHA)
-    campo_senha.press("Enter")
-    info["etapa"] = "enviei e-mail e senha, mas o site não confirmou o login"
+    # Clica no botão "Entrar" (apertar Enter acionava o "Esqueci minha senha")
+    info["etapa"] = "procurando o botão Entrar"
+    page.get_by_role("button", name="Entrar", exact=True).first.click(timeout=15000)
+    info["etapa"] = "cliquei em Entrar, mas o site não confirmou o login"
 
     for _ in range(20):
         page.wait_for_timeout(1500)
