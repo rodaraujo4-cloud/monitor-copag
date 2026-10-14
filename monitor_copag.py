@@ -11,6 +11,7 @@ Credenciais vêm dos "Secrets" do GitHub (NUNCA escreva a senha neste arquivo):
 import json
 import os
 import random
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -145,15 +146,46 @@ def fazer_login(page, info):
     campo_senha = page.locator('input[type="password"]').first
     campo_senha.fill(SENHA, timeout=15000)
 
-    # Clica no botão "Entrar" (apertar Enter acionava o "Esqueci minha senha")
+    # Fecha o aviso de cookies, se aparecer
+    for texto in ["Rejeitar", "Aceitar"]:
+        try:
+            page.get_by_role("button", name=texto, exact=False).first.click(timeout=2000)
+            break
+        except Exception:
+            pass
+
+    # O site tem outro "Entrar" no menu do topo; clica no que fica logo abaixo da senha
     info["etapa"] = "procurando o botão Entrar"
-    page.get_by_role("button", name="Entrar", exact=True).first.click(timeout=15000)
+    page.mouse.move(10, 400)  # tira o mouse do menu do topo
+    caixa_senha = campo_senha.bounding_box()
+    candidatos = page.locator("button, a, input[type=submit]").filter(
+        has_text=re.compile(r"^\s*Entrar\s*$", re.I))
+    melhor = None
+    for i in range(candidatos.count()):
+        botao = candidatos.nth(i)
+        try:
+            if not botao.is_visible():
+                continue
+            caixa = botao.bounding_box()
+        except Exception:
+            continue
+        if not caixa or not caixa_senha or caixa["y"] <= caixa_senha["y"]:
+            continue
+        distancia = caixa["y"] - caixa_senha["y"]
+        if melhor is None or distancia < melhor[0]:
+            melhor = (distancia, botao)
+    if melhor is None:
+        raise RuntimeError("botão Entrar abaixo da senha não encontrado")
+    melhor[1].click(timeout=15000)
     info["etapa"] = "cliquei em Entrar, mas o site não confirmou o login"
 
     for _ in range(20):
         page.wait_for_timeout(1500)
-        if esta_logado(page):
+        logado = esta_logado(page)
+        if logado:
             return True
+        if logado is None and "/login" not in page.url:
+            return True  # saiu da tela de login: consideramos que entrou
     return False
 
 
