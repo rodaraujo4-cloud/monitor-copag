@@ -36,6 +36,10 @@ SENHA = os.environ.get("COPAG_SENHA", "")
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "").strip()
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 
+MANUAL = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+              "(KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36")
+
 ARQ_ESTADO = Path(__file__).resolve().parent / "estado.json"
 
 SINAIS_404 = ["página não encontrada", "pagina nao encontrada", "não encontramos a página",
@@ -71,6 +75,27 @@ def telegram(msg):
         log(f"Falha ao enviar Telegram: {e}")
 
 
+def telegram_foto(png, legenda):
+    if not (TELEGRAM_TOKEN and TELEGRAM_CHAT_ID):
+        return
+    limite = f"----monitorcopag{random.randint(0, 10**9)}"
+    partes = []
+    for nome, valor in (("chat_id", TELEGRAM_CHAT_ID), ("caption", legenda[:1000])):
+        partes.append(f'--{limite}\r\nContent-Disposition: form-data; name="{nome}"\r\n\r\n'
+                      f'{valor}\r\n'.encode())
+    partes.append(f'--{limite}\r\nContent-Disposition: form-data; name="photo"; '
+                  f'filename="tela.png"\r\nContent-Type: image/png\r\n\r\n'.encode()
+                  + png + b"\r\n")
+    partes.append(f"--{limite}--\r\n".encode())
+    req = urllib.request.Request(
+        f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=b"".join(partes),
+        headers={"Content-Type": f"multipart/form-data; boundary={limite}"})
+    try:
+        urllib.request.urlopen(req, timeout=30)
+    except Exception as e:
+        log(f"Falha ao enviar foto: {e}")
+
+
 def carregar_estado():
     try:
         return json.loads(ARQ_ESTADO.read_text(encoding="utf-8"))
@@ -98,7 +123,8 @@ def esta_logado(page):
         return None
 
 
-def fazer_login(page):
+def fazer_login(page, info):
+    info["etapa"] = "abrindo a página de login"
     page.goto(f"{BASE}/login", wait_until="domcontentloaded", timeout=60000)
     page.wait_for_timeout(4000)
 
@@ -113,10 +139,12 @@ def fazer_login(page):
             except Exception:
                 pass
 
+    info["etapa"] = "procurando o campo de e-mail"
     campo_email = page.locator(
         'input[type="email"], input[name="email"], input[placeholder*="mail" i]').first
     campo_email.fill(EMAIL, timeout=20000)
 
+    info["etapa"] = "procurando o campo de senha"
     campo_senha = page.locator('input[type="password"]').first
     try:
         campo_senha.wait_for(state="visible", timeout=3000)
@@ -127,13 +155,12 @@ def fazer_login(page):
 
     campo_senha.fill(SENHA)
     campo_senha.press("Enter")
+    info["etapa"] = "enviei e-mail e senha, mas o site não confirmou o login"
 
     for _ in range(20):
         page.wait_for_timeout(1500)
         if esta_logado(page):
             return True
-    if "recaptcha" in page.content().lower():
-        log("A página de login parece ter captcha.")
     return False
 
 
@@ -199,18 +226,31 @@ def main():
         return
 
     with sync_playwright() as p:
-        navegador = p.chromium.launch(headless=True)
-        ctx = navegador.new_context(locale="pt-BR", viewport={"width": 1280, "height": 900})
+        navegador = p.chromium.launch(
+            headless=True, args=["--disable-blink-features=AutomationControlled"])
+        ctx = navegador.new_context(
+            locale="pt-BR", timezone_id="America/Sao_Paulo", user_agent=USER_AGENT,
+            viewport={"width": 1280, "height": 900})
+        ctx.add_init_script(
+            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         page = ctx.new_page()
 
+        info = {"etapa": "início"}
         try:
-            logado = fazer_login(page)
+            logado = fazer_login(page, info)
         except Exception as e:
-            log(f"Erro durante o login: {type(e).__name__}")
+            info["erro"] = type(e).__name__
             logado = False
 
         if not logado:
-            log("Não consegui fazer login. Pulando esta verificação.")
+            log(f"Não consegui fazer login. Etapa: {info['etapa']} {info.get('erro', '')}")
+            if MANUAL:
+                try:
+                    telegram_foto(page.screenshot(),
+                                  f"🔍 Diagnóstico do login\nParou em: {info['etapa']}"
+                                  f"\nErro: {info.get('erro', 'nenhum')}")
+                except Exception as e:
+                    log(f"Não consegui tirar a foto: {type(e).__name__}")
             if not estado.get("_aviso_login"):
                 telegram("⚠️ Monitor Copag: não consegui fazer login no site. "
                          "Verifique se a senha nos Secrets do GitHub está certa.")
