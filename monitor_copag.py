@@ -13,6 +13,7 @@ import os
 import random
 import re
 import time
+import unicodedata
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -241,6 +242,144 @@ def checar_produto(page, url):
     return PAGINA_VOLTOU, f"página voltou a aparecer (HTTP {status}) — confira o estoque"
 
 
+# ------------------------------------------------------------------ catálogo Pokémon
+# Além das páginas da lista URLS, o monitor varre TODOS os produtos Pokémon do site:
+# avisa quando um produto novo é cadastrado ou quando um antigo volta ao estoque.
+PALAVRA_CHAVE = "pokemon"
+MAX_AVISOS_SEPARADOS = 8  # acima disso, junta tudo em uma mensagem só
+
+
+def normalizar(texto):
+    sem_acento = unicodedata.normalize("NFKD", texto or "").encode("ascii", "ignore").decode()
+    return sem_acento.lower()
+
+
+def telegram_lista(titulo, linhas):
+    """Envia uma lista longa dividida em várias mensagens (limite do Telegram)."""
+    bloco = titulo
+    for linha in linhas:
+        if len(bloco) + len(linha) + 1 > 3800:
+            telegram(bloco)
+            bloco = titulo + " (continuação)"
+        bloco += "\n" + linha
+    telegram(bloco)
+
+
+def resumo_produto(prod):
+    ofertas = [s.get("commertialOffer", {})
+               for it in prod.get("items", []) for s in it.get("sellers", [])]
+    qtd = sum(o.get("AvailableQuantity", 0) or 0 for o in ofertas)
+    return {
+        "nome": prod.get("productName", "").strip(),
+        "slug": prod.get("linkText", ""),
+        "qtd": qtd,
+        "disponivel": qtd > 0 or any(o.get("IsAvailable") for o in ofertas),
+    }
+
+
+def categorias_pokemon(page):
+    """Descobre as categorias do site cujo nome contém 'Pokémon'."""
+    r = page.request.get(f"{BASE}/api/catalog_system/pub/category/tree/3", timeout=30000)
+    if not r.ok:
+        return []
+    achadas = []
+
+    def percorrer(nos, caminho):
+        for no in nos:
+            atual = caminho + [str(no.get("id"))]
+            if PALAVRA_CHAVE in normalizar(no.get("name")):
+                achadas.append("/".join(atual))
+            else:
+                percorrer(no.get("children", []), atual)
+
+    percorrer(r.json(), [])
+    return achadas
+
+
+def buscar_produtos(page, filtro):
+    produtos = {}
+    for inicio in range(0, 2500, 50):
+        url = (f"{BASE}/api/catalog_system/pub/products/search?{filtro}"
+               f"&_from={inicio}&_to={inicio + 49}")
+        r = page.request.get(url, timeout=30000)
+        if not r.ok:
+            if inicio == 0:
+                raise RuntimeError(f"HTTP {r.status}")
+            break
+        dados = r.json()
+        for prod in dados:
+            produtos[str(prod.get("productId"))] = resumo_produto(prod)
+        if len(dados) < 50:
+            break
+        time.sleep(0.5)
+    return produtos
+
+
+def verificar_catalogo(page, estado):
+    filtros = ["ft=" + PALAVRA_CHAVE]
+    try:
+        filtros += [f"fq=C:/{c}/" for c in categorias_pokemon(page)]
+    except Exception as e:
+        log(f"Não consegui ler as categorias: {type(e).__name__}")
+
+    encontrados = {}
+    for filtro in filtros:
+        try:
+            encontrados.update(buscar_produtos(page, filtro))
+        except Exception as e:
+            log(f"Busca '{filtro}' falhou: {e}")
+
+    if not encontrados:
+        log("Catálogo: nenhum produto retornado; mantendo o estado anterior.")
+        return
+
+    primeira_vez = "catalogo" not in estado
+    catalogo = estado.setdefault("catalogo", {})
+    ja_na_lista = {slug_de(u) for u in URLS}  # esses já têm aviso próprio
+    novos_com_estoque, voltaram, novos_sem_estoque = [], [], []
+
+    for pid, info in encontrados.items():
+        anterior = catalogo.get(pid)
+        catalogo[pid] = {"nome": info["nome"], "slug": info["slug"],
+                         "disponivel": info["disponivel"]}
+        if primeira_vez or info["slug"] in ja_na_lista:
+            continue
+        link = f"{BASE}/{info['slug']}/p"
+        if anterior is None:
+            if info["disponivel"]:
+                novos_com_estoque.append((info, link))
+            else:
+                novos_sem_estoque.append((info, link))
+        elif info["disponivel"] and not anterior.get("disponivel"):
+            voltaram.append((info, link))
+
+    disponiveis = [i for i in encontrados.values() if i["disponivel"]]
+    log(f"Catálogo Pokémon: {len(encontrados)} produtos, {len(disponiveis)} com estoque.")
+
+    if primeira_vez:
+        linhas = [f"• {i['nome']} (qtd {i['qtd']})" for i in
+                  sorted(disponiveis, key=lambda i: i["nome"])] or ["(nenhum no momento)"]
+        telegram_lista(f"📦 Varredura de TODOS os produtos Pokémon ativada!\n"
+                       f"{len(encontrados)} produtos encontrados. Em estoque agora:", linhas)
+        return
+
+    grupos = [
+        ("🆕🟢 NOVO PRODUTO EM ESTOQUE!", novos_com_estoque, True),
+        ("🟢 VOLTOU AO ESTOQUE!", voltaram, True),
+        ("🆕 Novo produto Pokémon cadastrado (ainda sem estoque)", novos_sem_estoque, False),
+    ]
+    for titulo, itens, mostrar_qtd in grupos:
+        if not itens:
+            continue
+        if len(itens) > MAX_AVISOS_SEPARADOS:
+            telegram_lista(f"{titulo} ({len(itens)} produtos)",
+                           [f"• {i['nome']}\n  {link}" for i, link in itens])
+            continue
+        for info, link in itens:
+            qtd = f" — quantidade: {info['qtd']}" if mostrar_qtd else ""
+            telegram(f"{titulo}\n{info['nome']}{qtd}\n{link}")
+
+
 # ------------------------------------------------------------------ principal
 def main():
     estado = carregar_estado()
@@ -298,6 +437,11 @@ def main():
                     telegram(f"{MENSAGENS[novo]}\n{detalhe}\n{url}")
                 estado[url] = novo
             time.sleep(random.uniform(2, 4))
+
+        try:
+            verificar_catalogo(page, estado)
+        except Exception as e:
+            log(f"Erro na varredura do catálogo: {type(e).__name__}: {e}")
 
         navegador.close()
 
