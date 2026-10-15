@@ -284,11 +284,14 @@ def categorias_pokemon(page):
         return []
     achadas = []
 
-    def percorrer(nos, caminho):
+    def percorrer(nos, ids):
         for no in nos:
-            atual = caminho + [str(no.get("id"))]
+            atual = ids + [str(no.get("id"))]
             if PALAVRA_CHAVE in normalizar(no.get("name")):
-                achadas.append("/".join(atual))
+                caminho = urllib.parse.urlparse(no.get("url", "")).path.strip("/").split("/")
+                facetas = "/".join(f"category-{n}/{parte}"
+                                   for n, parte in enumerate(caminho, 1) if parte)
+                achadas.append({"ids": "/".join(atual), "facetas": facetas})
             else:
                 percorrer(no.get("children", []), atual)
 
@@ -296,7 +299,38 @@ def categorias_pokemon(page):
     return achadas
 
 
-def buscar_produtos(page, filtro):
+def trecho_resposta(r):
+    try:
+        return r.text()[:200].replace("\n", " ")
+    except Exception:
+        return ""
+
+
+def buscar_inteligente(page, facetas="", termo=""):
+    """Busca da plataforma VTEX (Intelligent Search)."""
+    produtos = {}
+    for pagina in range(1, 51):
+        params = urllib.parse.urlencode({
+            "query": termo, "page": pagina, "count": 50, "locale": "pt-BR",
+            "hideUnavailableItems": "false", "fuzzy": "0"})
+        url = f"{BASE}/api/io/_v/api/intelligent-search/product_search/{facetas}?{params}"
+        r = page.request.get(url, timeout=30000)
+        if not r.ok:
+            if pagina == 1:
+                raise RuntimeError(f"HTTP {r.status} {trecho_resposta(r)}")
+            break
+        dados = r.json()
+        lista = dados.get("products", [])
+        for prod in lista:
+            produtos[str(prod.get("productId"))] = resumo_produto(prod)
+        if not lista or pagina * 50 >= (dados.get("recordsFiltered") or 0):
+            break
+        time.sleep(0.5)
+    return produtos
+
+
+def buscar_antiga(page, filtro):
+    """Busca antiga do catálogo VTEX (algumas lojas desativam)."""
     produtos = {}
     for inicio in range(0, 2500, 50):
         url = (f"{BASE}/api/catalog_system/pub/products/search?{filtro}"
@@ -304,7 +338,7 @@ def buscar_produtos(page, filtro):
         r = page.request.get(url, timeout=30000)
         if not r.ok:
             if inicio == 0:
-                raise RuntimeError(f"HTTP {r.status}")
+                raise RuntimeError(f"HTTP {r.status} {trecho_resposta(r)}")
             break
         dados = r.json()
         for prod in dados:
@@ -316,18 +350,31 @@ def buscar_produtos(page, filtro):
 
 
 def verificar_catalogo(page, estado):
-    filtros = ["ft=" + PALAVRA_CHAVE]
     try:
-        filtros += [f"fq=C:/{c}/" for c in categorias_pokemon(page)]
+        categorias = categorias_pokemon(page)
     except Exception as e:
+        categorias = []
         log(f"Não consegui ler as categorias: {type(e).__name__}")
+    log(f"Categorias Pokémon encontradas: {categorias}")
+
+    buscas = [("busca por termo", lambda: buscar_inteligente(page, termo=PALAVRA_CHAVE))]
+    for c in categorias:
+        if c["facetas"]:
+            buscas.append((f"categoria {c['facetas']}",
+                           lambda c=c: buscar_inteligente(page, facetas=c["facetas"])))
+    buscas.append(("busca antiga por termo", lambda: buscar_antiga(page, "ft=" + PALAVRA_CHAVE)))
+    for c in categorias:
+        buscas.append((f"busca antiga C:/{c['ids']}/",
+                       lambda c=c: buscar_antiga(page, f"fq=C:/{c['ids']}/")))
 
     encontrados = {}
-    for filtro in filtros:
+    for nome, funcao in buscas:
         try:
-            encontrados.update(buscar_produtos(page, filtro))
+            achados = funcao()
+            log(f"{nome}: {len(achados)} produtos")
+            encontrados.update(achados)
         except Exception as e:
-            log(f"Busca '{filtro}' falhou: {e}")
+            log(f"{nome} falhou: {e}")
 
     if not encontrados:
         log("Catálogo: nenhum produto retornado; mantendo o estado anterior.")
