@@ -1,5 +1,87 @@
 {
   "_aviso_login": false,
+  "catalogo": {
+    "1911": {
+      "disponivel": false,
+      "nome": "Box Pokémon Infernape V",
+      "slug": "box-pokemon-infernape-v"
+    },
+    "2203": {
+      "disponivel": false,
+      "nome": "Baralho De Batalha Deluxe Pokémon TCG Ninetales Ex",
+      "slug": "baralho-de-batalha-deluxe-pokemon-ninetales-ex-028d927000000sd"
+    },
+    "2395": {
+      "disponivel": false,
+      "nome": "Box Display Pokémon Escarlate e Violeta 10 Rivais Predestinados",
+      "slug": "box-display-pokemon-escarlate-e-violeta-10-rivais-predestinados-028d100000000bx"
+    },
+    "2621": {
+      "disponivel": false,
+      "nome": "Box Display Pokémon ME04 Caos Ascendente",
+      "slug": "box-display-pokemon-me04-caos-ascendente"
+    },
+    "2622": {
+      "disponivel": false,
+      "nome": "Blister Unitário Pokémon ME04 Caos Ascendente",
+      "slug": "blister-unitario-pokemon-me04-caos-ascendente"
+    },
+    "2623": {
+      "disponivel": false,
+      "nome": "Combo de Booster Pokémon ME04 Caos Ascendente",
+      "slug": "combo-de-booster-pokemon-me04-caos-ascendente"
+    },
+    "2624": {
+      "disponivel": false,
+      "nome": "Blister Triplo Pokémon ME04 Caos Ascendente",
+      "slug": "blister-triplo-pokemon-me04-caos-ascendente"
+    },
+    "2626": {
+      "disponivel": false,
+      "nome": "Treinador Avançado Pokémon ME04 Caos Ascendente",
+      "slug": "treinador-avancado-pokemon-me04-caos-ascendente"
+    },
+    "2630": {
+      "disponivel": false,
+      "nome": "Box Pokémon Coleção Mega Zygarde Ex",
+      "slug": "box-colecao-mega-zygarde-ex"
+    },
+    "2637": {
+      "disponivel": false,
+      "nome": "Box Pokémon Coleção Mega Luar Mega Gengar",
+      "slug": "box-pokemon-colecao-mega-luar-mega-gengar"
+    },
+    "2638": {
+      "disponivel": false,
+      "nome": "Box Pokémon Coleção Parceiro Inicial - Série 2",
+      "slug": "box-pokemon-colecao-parceiro-inicial--serie-2"
+    },
+    "2655": {
+      "disponivel": false,
+      "nome": "Blister Unitário Pokémon ME05 Escuridão Absoluta",
+      "slug": "blister-unitario-pokemon-me05-escuridao-absoluta"
+    },
+    "2657": {
+      "disponivel": false,
+      "nome": "Blister Quadrúplo Pokémon ME05 Escuridão Absoluta",
+      "slug": "blister-quadruplo-pokemon-me05-escuridao-absoluta"
+    },
+    "2658": {
+      "disponivel": false,
+      "nome": "Combo de Booster Pokémon ME05 Escuridão Absoluta",
+      "slug": "combo-de-booster-pokemon-me05-escuridao-absoluta"
+    },
+    "2660": {
+      "disponivel": false,
+      "nome": "Treinador Avançado Pokémon ME05 Escuridão Absoluta",
+      "slug": "treinador-avancado-pokemon-me05-escuridao-absoluta"
+    },
+    "2661": {
+      "disponivel": false,
+      "nome": "Box Pokémon Coleção Mega Greninja EX",
+      "slug": "box-pokemon-colecao-mega-greninja-ex"
+    }
+  },
   "https://www.b2b.copagloja.com.br/blister-duplo-com-moeda/p": "AUSENTE",
   "https://www.b2b.copagloja.com.br/blister-triplo-exeggutor/p": "AUSENTE",
   "https://www.b2b.copagloja.com.br/blister-triplo-lucario-/p": "AUSENTE",
