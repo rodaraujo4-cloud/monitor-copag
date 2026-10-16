@@ -38,6 +38,10 @@ SENHA = os.environ.get("COPAG_SENHA", "")
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "").strip()
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 
+# Quantas verificações cada execução do GitHub faz, e quantos minutos entre elas
+VERIFICACOES = max(1, int(os.environ.get("VERIFICACOES", "2")))
+ESPERA_MIN = float(os.environ.get("ESPERA_MIN", "12"))
+
 MANUAL = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36")
@@ -472,30 +476,44 @@ def main():
         estado["_aviso_login"] = False
         log("Login OK.")
 
-        resumo = []
-        for url in URLS:
-            novo, detalhe = checar_produto(page, url)
-            anterior = estado.get(url)
-            log(f"{slug_de(url):40s} {novo:14s} {detalhe}")
-            resumo.append(f"• {slug_de(url)}: {novo}")
-
-            if novo != ERRO:
-                if novo != anterior and not (anterior is None and novo == AUSENTE):
-                    telegram(f"{MENSAGENS[novo]}\n{detalhe}\n{url}")
-                estado[url] = novo
-            time.sleep(random.uniform(2, 4))
-
-        try:
-            verificar_catalogo(page, estado)
-        except Exception as e:
-            log(f"Erro na varredura do catálogo: {type(e).__name__}: {e}")
+        for rodada in range(1, VERIFICACOES + 1):
+            log(f"===== Verificação {rodada} de {VERIFICACOES} =====")
+            if rodada > 1 and esta_logado(page) is False:
+                log("Sessão caiu; fazendo login de novo.")
+                try:
+                    fazer_login(page, {"etapa": ""})
+                except Exception as e:
+                    log(f"Novo login falhou: {type(e).__name__}")
+            verificar_tudo(page, estado, primeira_execucao and rodada == 1)
+            salvar_estado(estado)  # grava a cada rodada
+            if rodada < VERIFICACOES:
+                log(f"Aguardando {ESPERA_MIN} min para a próxima verificação...")
+                time.sleep(ESPERA_MIN * 60)
 
         navegador.close()
 
-    if primeira_execucao:
-        telegram("✅ Monitor Copag ativado! Situação atual:\n" + "\n".join(resumo))
 
-    salvar_estado(estado)
+def verificar_tudo(page, estado, avisar_ativacao):
+    resumo = []
+    for url in URLS:
+        novo, detalhe = checar_produto(page, url)
+        anterior = estado.get(url)
+        log(f"{slug_de(url):40s} {novo:14s} {detalhe}")
+        resumo.append(f"• {slug_de(url)}: {novo}")
+
+        if novo != ERRO:
+            if novo != anterior and not (anterior is None and novo == AUSENTE):
+                telegram(f"{MENSAGENS[novo]}\n{detalhe}\n{url}")
+            estado[url] = novo
+        time.sleep(random.uniform(2, 4))
+
+    try:
+        verificar_catalogo(page, estado)
+    except Exception as e:
+        log(f"Erro na varredura do catálogo: {type(e).__name__}: {e}")
+
+    if avisar_ativacao:
+        telegram("✅ Monitor Copag ativado! Situação atual:\n" + "\n".join(resumo))
 
 
 if __name__ == "__main__":
