@@ -2,7 +2,7 @@ name: Monitor Copag
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # a cada 10 minutos (troque 10 por 30 para meia em meia hora)
+    - cron: "7,22,37,52 * * * *"   # pede para rodar a cada 15 min, fora dos minutos "redondos"
   workflow_dispatch:          # permite rodar manualmente pelo botão "Run workflow"
 
 permissions:
@@ -14,8 +14,8 @@ concurrency:
 
 jobs:
   checar:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - name: Baixar arquivos
         uses: actions/checkout@v4
@@ -36,6 +36,8 @@ jobs:
           COPAG_SENHA: ${{ secrets.COPAG_SENHA }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          VERIFICACOES: "2"    # verificações por execução
+          ESPERA_MIN: "12"     # minutos entre elas
         run: python monitor_copag.py
 
       - name: Guardar resultado para a próxima verificação
