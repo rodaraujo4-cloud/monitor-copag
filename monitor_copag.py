@@ -8,6 +8,7 @@ e grava o resultado em estado.json (que o GitHub salva para a próxima execuçã
 Credenciais vêm dos "Secrets" do GitHub (NUNCA escreva a senha neste arquivo):
   COPAG_EMAIL, COPAG_SENHA, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID
 """
+import html
 import json
 import os
 import random
@@ -278,7 +279,76 @@ def resumo_produto(prod):
         "slug": prod.get("linkText", ""),
         "qtd": qtd,
         "disponivel": qtd > 0 or any(o.get("IsAvailable") for o in ofertas),
+        "skus": [(it.get("itemId"), sl.get("sellerId"))
+                 for it in prod.get("items", []) for sl in it.get("sellers", [])
+                 if it.get("itemId") and sl.get("sellerId")],
     }
+
+
+_canal = {}
+
+
+def canal_de_vendas(page):
+    """Canal de vendas (tabela B2B) da sua sessão logada."""
+    if "sc" not in _canal:
+        try:
+            r = page.request.get(f"{BASE}/api/sessions?items=store.channel", timeout=30000)
+            _canal["sc"] = (r.json().get("namespaces", {}).get("store", {})
+                            .get("channel", {}).get("value"))
+        except Exception:
+            _canal["sc"] = None
+    return _canal["sc"]
+
+
+MOTIVOS = {
+    "withoutStock": "sem estoque",
+    "withoutPriceFulfillment": "sem preço definido",
+    "withoutPrice": "sem preço definido",
+    "cannotBeDelivered": "não entregável",
+    "unavailableProduct": "produto indisponível",
+}
+
+
+def confirmar_estoque(page, info, link):
+    """Confirma o estoque real antes de avisar.
+    Devolve (True/False/None, motivo). None = não deu para saber."""
+    # 1) Simula um carrinho, como se fosse comprar 1 unidade
+    if info.get("skus"):
+        sc = canal_de_vendas(page)
+        url = f"{BASE}/api/checkout/pub/orderForms/simulation" + (f"?sc={sc}" if sc else "")
+        corpo = {"items": [{"id": sku, "quantity": 1, "seller": vend}
+                           for sku, vend in info["skus"][:5]], "country": "BRA"}
+        try:
+            r = page.request.post(url, data=corpo, timeout=30000,
+                                  headers={"Content-Type": "application/json"})
+            if r.ok:
+                itens = r.json().get("items", [])
+                if itens:
+                    situacoes = [i.get("availability") for i in itens]
+                    log(f"Simulação de carrinho para {info['slug']}: {situacoes}")
+                    if "available" in situacoes:
+                        return True, ""
+                    motivo = ", ".join(sorted({MOTIVOS.get(x, str(x)) for x in situacoes}))
+                    return False, motivo
+            else:
+                log(f"Simulação HTTP {r.status} para {info['slug']}")
+        except Exception as e:
+            log(f"Simulação falhou para {info['slug']}: {type(e).__name__}")
+    # 2) Se a simulação não respondeu, olha a página do produto
+    try:
+        resp = page.goto(link, wait_until="domcontentloaded", timeout=60000)
+        try:
+            page.wait_for_load_state("networkidle", timeout=15000)
+        except PWTimeout:
+            pass
+        if resp and resp.status in (404, 410):
+            return False, "página ainda não está no ar"
+        texto = page.inner_text("body").lower()
+        if any(sinal in texto for sinal in SINAIS_SEM_ESTOQUE):
+            return False, "página mostra indisponível"
+    except Exception:
+        pass
+    return None, ""
 
 
 def categorias_pokemon(page):
@@ -387,22 +457,58 @@ def verificar_catalogo(page, estado):
     primeira_vez = "catalogo" not in estado
     catalogo = estado.setdefault("catalogo", {})
     ja_na_lista = {slug_de(u) for u in URLS}  # esses já têm aviso próprio
-    novos_com_estoque, voltaram, novos_sem_estoque = [], [], []
+    extras = estado.setdefault("extras", [])  # páginas achadas pelo mapa do site
+    slugs_encontrados = {i["slug"] for i in encontrados.values()}
+    eram_extras = set(extras) & slugs_encontrados
+    # extras que já apareceram na busca passam a ser acompanhados por aqui
+    estado["extras"] = [x for x in extras if x not in slugs_encontrados]
+
+    novos_com_estoque, voltaram, liberados, novos_sem_estoque, pre_lancamento = [], [], [], [], []
 
     for pid, info in encontrados.items():
-        anterior = catalogo.get(pid)
-        catalogo[pid] = {"nome": info["nome"], "slug": info["slug"],
-                         "disponivel": info["disponivel"]}
-        if primeira_vez or info["slug"] in ja_na_lista:
-            continue
+        anterior = catalogo.get(pid) or {}
+        produto_novo = pid not in catalogo
         link = f"{BASE}/{info['slug']}/p"
-        if anterior is None:
-            if info["disponivel"]:
+        ignorar = primeira_vez or info["slug"] in ja_na_lista
+        ja_pre_avisado = bool(anterior.get("pre_avisado"))
+        virou_pre = False
+        # Registros da versão anterior (sem confirmação de carrinho): reconfere uma vez
+        antigo_sem_conferir = (not produto_novo and anterior.get("disponivel")
+                               and "pre_avisado" not in anterior)
+        estava_disponivel = bool(anterior.get("disponivel")) and not antigo_sem_conferir
+
+        # A busca do site às vezes mostra estoque antes de ele estar liberado.
+        # Confirma com uma simulação de carrinho antes de avisar.
+        if info["disponivel"] and not ignorar and not estava_disponivel:
+            confirmado, motivo = confirmar_estoque(page, info, link)
+            info["confirmado"] = confirmado
+            if confirmado is False:
+                info["disponivel"] = False
+                if not ja_pre_avisado:
+                    pre_lancamento.append((info, link, motivo))
+                    virou_pre = True
+
+        catalogo[pid] = {"nome": info["nome"], "slug": info["slug"],
+                         "disponivel": info["disponivel"],
+                         "pre_avisado": ja_pre_avisado or virou_pre}
+        if ignorar:
+            continue
+        if antigo_sem_conferir and not virou_pre:
+            continue  # já estava disponível antes; só atualiza o registro, sem avisar
+        if info["disponivel"] and not estava_disponivel:
+            if ja_pre_avisado:
+                liberados.append((info, link))
+            elif produto_novo:
                 novos_com_estoque.append((info, link))
             else:
-                novos_sem_estoque.append((info, link))
-        elif info["disponivel"] and not anterior.get("disponivel"):
-            voltaram.append((info, link))
+                voltaram.append((info, link))
+        elif produto_novo and not virou_pre and info["slug"] not in eram_extras:
+            novos_sem_estoque.append((info, link))
+
+    for info, link, motivo in pre_lancamento:
+        telegram("👀 Possível pré-lançamento: estoque apareceu no sistema, "
+                 f"mas ainda não está liberado para compra.\n{info['nome']}\n"
+                 f"Motivo informado pelo carrinho: {motivo or 'não informado'}\n{link}")
 
     disponiveis = [i for i in encontrados.values() if i["disponivel"]]
     log(f"Catálogo Pokémon: {len(encontrados)} produtos, {len(disponiveis)} com estoque.")
@@ -415,6 +521,7 @@ def verificar_catalogo(page, estado):
         return
 
     grupos = [
+        ("🚀🟢 LIBERADO PARA COMPRA! (era pré-lançamento)", liberados, True),
         ("🆕🟢 NOVO PRODUTO EM ESTOQUE!", novos_com_estoque, True),
         ("🟢 VOLTOU AO ESTOQUE!", voltaram, True),
         ("🆕 Novo produto Pokémon cadastrado (ainda sem estoque)", novos_sem_estoque, False),
@@ -427,8 +534,80 @@ def verificar_catalogo(page, estado):
                            [f"• {i['nome']}\n  {link}" for i, link in itens])
             continue
         for info, link in itens:
-            qtd = f" — quantidade: {info['qtd']}" if mostrar_qtd else ""
-            telegram(f"{titulo}\n{info['nome']}{qtd}\n{link}")
+            extra = ""
+            if mostrar_qtd:
+                # 10000 é um número "genérico" da busca, não a quantidade real
+                if 0 < info["qtd"] < 10000:
+                    extra = f" — quantidade: {info['qtd']}"
+                if info.get("confirmado") is None:
+                    extra += "\n⚠️ Não consegui confirmar no carrinho; confira no site."
+                else:
+                    extra += "\n✅ Confirmado na simulação de carrinho."
+            telegram(f"{titulo}\n{info['nome']}{extra}\n{link}")
+
+
+# ------------------------------------------------------------------ mapa do site
+# Algumas páginas novas aparecem no mapa do site (sitemap) antes da busca.
+MAX_PAGINAS_NOVAS_POR_RODADA = 15
+
+
+def ler_sitemap(page):
+    """Devolve o conjunto de produtos (slugs) listados no mapa do site, ou None."""
+    slugs, fila, lidos = set(), [f"{BASE}/sitemap.xml"], 0
+    while fila and lidos < 30:
+        endereco = fila.pop(0)
+        lidos += 1
+        try:
+            r = page.request.get(endereco, timeout=30000)
+            if not r.ok:
+                continue
+            locs = re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", r.text())
+        except Exception:
+            continue
+        for loc in locs:
+            loc = html.unescape(loc)
+            caminho = urllib.parse.urlparse(loc).path.rstrip("/")
+            if caminho.endswith("/p"):
+                slugs.add(caminho.removesuffix("/p").rsplit("/", 1)[-1])
+            elif ".xml" in caminho and "product" in caminho.lower():
+                fila.append(loc)
+    return slugs or None
+
+
+def verificar_sitemap(page, estado):
+    atuais = ler_sitemap(page)
+    if not atuais:
+        log("Mapa do site: não disponível ou vazio.")
+        return
+    primeira_vez = "sitemap" not in estado
+    conhecidos = set(estado.get("sitemap", []))
+    log(f"Mapa do site: {len(atuais)} produtos.")
+    if primeira_vez:
+        estado["sitemap"] = sorted(atuais)
+        return
+
+    ja_vistos = ({v.get("slug") for v in estado.get("catalogo", {}).values()}
+                 | {slug_de(u) for u in URLS} | set(estado.get("extras", [])))
+    novos = sorted(atuais - conhecidos - ja_vistos)
+    verificados = set()
+    for slug in novos[:MAX_PAGINAS_NOVAS_POR_RODADA]:
+        verificados.add(slug)
+        url = f"{BASE}/{slug}/p"
+        situacao, detalhe = checar_produto(page, url)
+        try:
+            titulo = page.title()
+        except Exception:
+            titulo = ""
+        if PALAVRA_CHAVE in normalizar(slug) or PALAVRA_CHAVE in normalizar(titulo):
+            log(f"Nova página Pokémon no mapa do site: {slug} ({situacao})")
+            if situacao != ERRO:
+                estado[url] = situacao
+            estado.setdefault("extras", []).append(slug)
+            estado["extras"] = estado["extras"][-50:]
+            telegram("🆕👀 Nova página Pokémon detectada (ainda fora da busca do site)\n"
+                     f"{titulo or slug}\n{detalhe}\n{url}")
+    # os que ficaram para depois serão verificados na próxima rodada
+    estado["sitemap"] = sorted((conhecidos | atuais) - (set(novos) - verificados))
 
 
 # ------------------------------------------------------------------ principal
@@ -495,11 +674,13 @@ def main():
 
 def verificar_tudo(page, estado, avisar_ativacao):
     resumo = []
-    for url in URLS:
+    extras = [f"{BASE}/{x}/p" for x in estado.get("extras", [])]
+    for url in URLS + extras:
         novo, detalhe = checar_produto(page, url)
         anterior = estado.get(url)
         log(f"{slug_de(url):40s} {novo:14s} {detalhe}")
-        resumo.append(f"• {slug_de(url)}: {novo}")
+        if url in URLS:
+            resumo.append(f"• {slug_de(url)}: {novo}")
 
         if novo != ERRO:
             if novo != anterior and not (anterior is None and novo == AUSENTE):
@@ -511,6 +692,11 @@ def verificar_tudo(page, estado, avisar_ativacao):
         verificar_catalogo(page, estado)
     except Exception as e:
         log(f"Erro na varredura do catálogo: {type(e).__name__}: {e}")
+
+    try:
+        verificar_sitemap(page, estado)
+    except Exception as e:
+        log(f"Erro no mapa do site: {type(e).__name__}: {e}")
 
     if avisar_ativacao:
         telegram("✅ Monitor Copag ativado! Situação atual:\n" + "\n".join(resumo))
