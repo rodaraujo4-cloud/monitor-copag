@@ -96,6 +96,24 @@
       "nome": "Box Pokémon Coleção Mega Greninja EX",
       "pre_avisado": false,
       "slug": "box-pokemon-colecao-mega-greninja-ex"
+    },
+    "2681": {
+      "disponivel": false,
+      "nome": "Box Pokémon Mega Forças Mega Dragonite Ex",
+      "pre_avisado": true,
+      "slug": "box-pokemon-mega-forcas-mega-dragonite-ex"
+    },
+    "2682": {
+      "disponivel": false,
+      "nome": "Box Pokémon Mega Forças Mega Darkrai Ex",
+      "pre_avisado": true,
+      "slug": "box-pokemon-mega-forcas-mega-darkrai-ex"
+    },
+    "2683": {
+      "disponivel": false,
+      "nome": "Box Pokémon Mega Forças Mega Zeraora Ex",
+      "pre_avisado": true,
+      "slug": "box-pokemon-mega-forcas-mega-zeraora-ex"
     }
   },
   "extras": [],
