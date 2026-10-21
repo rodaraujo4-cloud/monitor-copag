@@ -110,7 +110,7 @@
       "slug": "box-pokemon-mega-forcas-mega-darkrai-ex"
     },
     "2683": {
-      "disponivel": false,
+      "disponivel": true,
       "nome": "Box Pokémon Mega Forças Mega Zeraora Ex",
       "pre_avisado": true,
       "slug": "box-pokemon-mega-forcas-mega-zeraora-ex"
@@ -120,7 +120,7 @@
   "https://www.b2b.copagloja.com.br/blister-duplo-com-moeda/p": "AUSENTE",
   "https://www.b2b.copagloja.com.br/blister-triplo-exeggutor/p": "AUSENTE",
   "https://www.b2b.copagloja.com.br/blister-triplo-lucario-/p": "AUSENTE",
-  "https://www.b2b.copagloja.com.br/box-colecao-com-poster-/p": "AUSENTE",
+  "https://www.b2b.copagloja.com.br/box-colecao-com-poster-/p": "PAGINA_VOLTOU",
   "https://www.b2b.copagloja.com.br/box-ex-sylveon/p": "AUSENTE",
   "https://www.b2b.copagloja.com.br/box-greninja/p": "AUSENTE",
   "https://www.b2b.copagloja.com.br/treinador-avancado-pokemon-30-anos/p": "AUSENTE",
