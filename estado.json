@@ -73,6 +73,12 @@
       "pre_avisado": false,
       "slug": "blister-unitario-pokemon-me05-escuridao-absoluta"
     },
+    "2656": {
+      "disponivel": true,
+      "nome": "Blister Triplo Pokémon ME05 Escuridão Absoluta",
+      "pre_avisado": false,
+      "slug": "blister-triplo-pokemon-me05-escuridao-absoluta"
+    },
     "2657": {
       "disponivel": false,
       "nome": "Blister Quadrúplo Pokémon ME05 Escuridão Absoluta",
@@ -118,7 +124,6 @@
   },
   "extras": [
     "blister-quadruplo-pokemon-me04-caos-ascendente",
-    "blister-triplo-pokemon-me05-escuridao-absoluta",
     "box-display-pokemon-me05-escuridao-absoluta-028d199900000bx",
     "deck-de-batalha-pokemon-deluxe-miraidon",
     "deck-de-batalha-pokemon-houndoom-ex",
