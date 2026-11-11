@@ -44,9 +44,6 @@ VERIFICACOES = max(1, int(os.environ.get("VERIFICACOES", "2")))
 ESPERA_MIN = float(os.environ.get("ESPERA_MIN", "12"))
 
 MANUAL = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
-USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-              "(KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36")
-
 ARQ_ESTADO = Path(__file__).resolve().parent / "estado.json"
 
 SINAIS_404 = ["página não encontrada", "pagina nao encontrada", "não encontramos a página",
@@ -620,10 +617,19 @@ def main():
         return
 
     with sync_playwright() as p:
-        navegador = p.chromium.launch(
-            headless=True, args=["--disable-blink-features=AutomationControlled"])
+        argumentos = ["--disable-blink-features=AutomationControlled"]
+        try:
+            # Usa o Google Chrome que já vem instalado nos computadores do GitHub
+            navegador = p.chromium.launch(channel="chrome", headless=True, args=argumentos)
+        except Exception as e:
+            log(f"Chrome do sistema indisponível ({type(e).__name__}); tentando o navegador padrão.")
+            navegador = p.chromium.launch(headless=True, args=argumentos)
+        versao = (navegador.version or "").split(".")[0] or "140"
+        user_agent = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                      f"(KHTML, like Gecko) Chrome/{versao}.0.0.0 Safari/537.36")
+        log(f"Navegador: Chrome {navegador.version}")
         ctx = navegador.new_context(
-            locale="pt-BR", timezone_id="America/Sao_Paulo", user_agent=USER_AGENT,
+            locale="pt-BR", timezone_id="America/Sao_Paulo", user_agent=user_agent,
             viewport={"width": 1280, "height": 900})
         ctx.add_init_script(
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
