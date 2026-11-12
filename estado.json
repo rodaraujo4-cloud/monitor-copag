@@ -158,7 +158,7 @@
       "slug": "blister-quadruplo-pokemon-me06-reinado-delta"
     },
     "2724": {
-      "disponivel": true,
+      "disponivel": false,
       "nome": "Combo de Booster Pokémon ME06 Reinado Delta",
       "pre_avisado": false,
       "slug": "combo-de-booster-pokemon-reinado-delta"
@@ -176,7 +176,7 @@
       "slug": "pokemon-celebracao-30-anos-box-premium-porta-retrato"
     },
     "2742": {
-      "disponivel": true,
+      "disponivel": false,
       "nome": "Box Display Pokémon ME06 Reinado Delta",
       "pre_avisado": true,
       "slug": "box-display-pokemon-me06-reinado-delta"
@@ -191,21 +191,21 @@
     "booster-unitario-pokemon-mega-evolucao",
     "box-pokemon-mega-charizard-y"
   ],
-  "https://www.b2b.copagloja.com.br/blister-duplo-com-moeda/p": "SEM_ESTOQUE",
-  "https://www.b2b.copagloja.com.br/blister-quadruplo-pokemon-me04-caos-ascendente/p": "SEM_ESTOQUE",
-  "https://www.b2b.copagloja.com.br/blister-triplo-exeggutor/p": "SEM_ESTOQUE",
-  "https://www.b2b.copagloja.com.br/blister-triplo-lucario-/p": "SEM_ESTOQUE",
+  "https://www.b2b.copagloja.com.br/blister-duplo-com-moeda/p": "PAGINA_VOLTOU",
+  "https://www.b2b.copagloja.com.br/blister-quadruplo-pokemon-me04-caos-ascendente/p": "PAGINA_VOLTOU",
+  "https://www.b2b.copagloja.com.br/blister-triplo-exeggutor/p": "PAGINA_VOLTOU",
+  "https://www.b2b.copagloja.com.br/blister-triplo-lucario-/p": "PAGINA_VOLTOU",
   "https://www.b2b.copagloja.com.br/blister-triplo-pokemon-me05-escuridao-absoluta/p": "PAGINA_VOLTOU",
-  "https://www.b2b.copagloja.com.br/booster-unitario-pokemon-mega-evolucao/p": "SEM_ESTOQUE",
-  "https://www.b2b.copagloja.com.br/box-colecao-com-poster-/p": "SEM_ESTOQUE",
-  "https://www.b2b.copagloja.com.br/box-display-pokemon-me05-escuridao-absoluta-028d199900000bx/p": "SEM_ESTOQUE",
-  "https://www.b2b.copagloja.com.br/box-ex-sylveon/p": "SEM_ESTOQUE",
-  "https://www.b2b.copagloja.com.br/box-greninja/p": "SEM_ESTOQUE",
-  "https://www.b2b.copagloja.com.br/box-pokemon-mega-charizard-y/p": "SEM_ESTOQUE",
-  "https://www.b2b.copagloja.com.br/deck-de-batalha-pokemon-deluxe-miraidon/p": "SEM_ESTOQUE",
-  "https://www.b2b.copagloja.com.br/deck-de-batalha-pokemon-houndoom-ex/p": "SEM_ESTOQUE",
-  "https://www.b2b.copagloja.com.br/deck-de-batalha-pokemon-melmetal-ex/p": "SEM_ESTOQUE",
-  "https://www.b2b.copagloja.com.br/treinador-avancado-pokemon-30-anos/p": "SEM_ESTOQUE",
+  "https://www.b2b.copagloja.com.br/booster-unitario-pokemon-mega-evolucao/p": "PAGINA_VOLTOU",
+  "https://www.b2b.copagloja.com.br/box-colecao-com-poster-/p": "PAGINA_VOLTOU",
+  "https://www.b2b.copagloja.com.br/box-display-pokemon-me05-escuridao-absoluta-028d199900000bx/p": "PAGINA_VOLTOU",
+  "https://www.b2b.copagloja.com.br/box-ex-sylveon/p": "PAGINA_VOLTOU",
+  "https://www.b2b.copagloja.com.br/box-greninja/p": "PAGINA_VOLTOU",
+  "https://www.b2b.copagloja.com.br/box-pokemon-mega-charizard-y/p": "PAGINA_VOLTOU",
+  "https://www.b2b.copagloja.com.br/deck-de-batalha-pokemon-deluxe-miraidon/p": "PAGINA_VOLTOU",
+  "https://www.b2b.copagloja.com.br/deck-de-batalha-pokemon-houndoom-ex/p": "PAGINA_VOLTOU",
+  "https://www.b2b.copagloja.com.br/deck-de-batalha-pokemon-melmetal-ex/p": "PAGINA_VOLTOU",
+  "https://www.b2b.copagloja.com.br/treinador-avancado-pokemon-30-anos/p": "PAGINA_VOLTOU",
   "sitemap": [
     "0100277000000kt",
     "0100278000000kt",
